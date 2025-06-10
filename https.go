@@ -301,6 +301,10 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			}
 			for !clientTlsReader.IsEOF() {
 				req, err := clientTlsReader.ReadRequest()
+				// If we fail the read, we'd still prefer ctx.Req to be non-nil when we pass it to ConnectionErrHandler
+				if req == nil {
+					req = r
+				}
 				ctx := &ProxyCtx{
 					Req:          req,
 					Session:      atomic.AddInt64(&proxy.sess, 1),
