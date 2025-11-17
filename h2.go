@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -50,7 +51,11 @@ func (r *H2Transport) RoundTrip(_ *http.Request) (*http.Response, error) {
 		return nil, err
 	}
 	if r.TLSConfig == nil || !r.TLSConfig.InsecureSkipVerify {
-		if err = rawTLSConn.VerifyHostname(r.TLSConfig.ServerName); err != nil {
+		hostnameToVerify := r.TLSConfig.ServerName
+		if net.ParseIP(hostnameToVerify) != nil {
+			hostnameToVerify = fmt.Sprintf("[%s]", hostnameToVerify)
+		}
+		if err = rawTLSConn.VerifyHostname(hostnameToVerify); err != nil {
 			return nil, err
 		}
 	}
