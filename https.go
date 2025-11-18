@@ -286,12 +286,25 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 			defer rawClientTls.Close()
 			if err := rawClientTls.Handshake(); err != nil {
 				ctx.Warnf("Cannot handshake client %v %v", r.Host, err)
+				if proxy.ConnectionErrHandler != nil {
+					proxy.ConnectionErrHandler(proxyClient, ctx, err)
+				}
 				return
 			}
-
 			clientTlsReader := http1parser.NewRequestReader(proxy.PreventCanonicalization, rawClientTls)
+			if clientTlsReader.IsEOF() {
+				err := errors.New("Received immediate EOF after TLS handshake with " + r.Host)
+				ctx.Warnf(err.Error())
+				if proxy.ConnectionErrHandler != nil {
+					proxy.ConnectionErrHandler(proxyClient, ctx, err)
+				}
+			}
 			for !clientTlsReader.IsEOF() {
 				req, err := clientTlsReader.ReadRequest()
+				// If we fail the read, we'd still prefer ctx.Req to be non-nil when we pass it to ConnectionErrHandler
+				if req == nil {
+					req = r
+				}
 				ctx := &ProxyCtx{
 					Req:          req,
 					Session:      atomic.AddInt64(&proxy.sess, 1),
@@ -303,6 +316,10 @@ func (proxy *ProxyHttpServer) handleHttps(w http.ResponseWriter, r *http.Request
 					ctx.Warnf("Cannot read TLS request from mitm'd client %v %v", r.Host, err)
 				}
 				if err != nil {
+					if proxy.ConnectionErrHandler != nil {
+						err = errors.New("Cannot read TLS request from " + r.Host + ": " + err.Error())
+						proxy.ConnectionErrHandler(proxyClient, ctx, err)
+					}
 					return
 				}
 
