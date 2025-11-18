@@ -400,7 +400,11 @@ func (t *Transport) getConn(cm *connectMethod) (*persistConn, error) {
 			return nil, err
 		}
 		if t.TLSClientConfig == nil || !t.TLSClientConfig.InsecureSkipVerify {
-			if err = tlsConn.VerifyHostname(cm.tlsHost()); err != nil {
+			hostnameToVerify := cm.tlsHost()
+			if net.ParseIP(hostnameToVerify) != nil {
+				hostnameToVerify = fmt.Sprintf("[%s]", hostnameToVerify)
+			}
+			if err = tlsConn.VerifyHostname(hostnameToVerify); err != nil {
 				return nil, err
 			}
 		}
